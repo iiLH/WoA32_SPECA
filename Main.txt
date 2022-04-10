@@ -1,0 +1,96 @@
+@echo off
+color 03
+title ARMV7 Windows installer for lumia SPEC A Devices
+echo ------------------------------------------------------------------------
+echo Checking if your pc has the basic things to being able to deploy...
+echo -------------------------------------------------------------------
+:: uses WHERE command for checking
+call :checkset
+:checkset
+echo Checking DISM
+where dism >nul
+if %ERRORLEVEL% NEQ 0 call :err
+echo Checking bcdedit
+where bcdedit >nul
+if %ERRORLEVEL% NEQ 0 call :err
+echo Checking was done, press any key to continue
+pause >nul
+call :mnua
+:mnua
+cls
+echo ---------------------------------------------------------------------------------------------------------------
+echo Main menu:                                                                                                    /
+echo -------------------------------------------------------------------------------------------------------------
+echo Main menu options:
+echo A-Start an installation from zero (THIS WILL LOSE ANY KIND OF DATA STORED ON YOUR CURRENT ARMV7 version of Windows preinstalled (ADMNINSTRATOR REQUERIED)
+echo B-Upgrade your version (it will make a backup from anything in Users folder (YOU MUST USE RUN AS ADMINISTRATOR OR NSUDO)
+echo C-Mount the registery
+echo --------------------------------------------------------------------------------------------------------------------------------
+set /p data_option=Choose any option:
+if %data_option%==A set conservefiles=no && call :phaseone
+if %data_option%==a set conservefiles=no && call :phaseone
+if %data_option%==B set conservefiles=yes && call phaseone
+if %data_option%==b set conservefiles=yes && call phaseone
+if %data_option%==C call :regmount
+if %data_option%==c call :regmount
+:phaseone
+cls
+echo Upgrade mode: %conservefiles%
+echo -------------------------------------------------------------------
+echo Phase 1: Sources
+echo -----------------------------------------------------------------
+echo 1st- load the install.wim file:
+echo if your path contains spaces: use the quotes. Example: "C:\Users\Example\This is a wim file\install.wim"
+echo -----------------------------------------------------------------
+set /p wimfile=Path to the wim file
+call :phasedrv
+:phasedrv
+echo 2nd- Load a drivers folder.
+echo as before, is better to use the quotes if your folder's path has spaces.
+set /p DRIVERFOLDER=Driver folder:  
+echo ----------------------------------------------------------------
+echo 3rd- insert the Lumia's MainOS modifed partition
+echo you must only use the letter drive. Examples are E: (don't use backslash, belive me ;) )
+set /p MOS=MainOS's Letter drive: 
+echo -------------------------------
+echo OK! your values are:
+echo Wim file: %wimfile%
+echo Driver folder: %DRIVERFOLDER%
+echo Upgrade mode: %conservefiles%
+echo MainOS's letter drive: %MOS%
+echo -----------------------------
+echo Let's go!
+if %conservefiles%==yes (call :copy) ELSE (call :deploy)
+call :deploy
+:deploy
+echo Deploy of %wimfile% started at %TIME%
+dism /Apply-Image /ImageFile:%wimfile% /ApplyDir:%MOS%\ /Index:1
+echo Deploy ended, install of the driver folder %DRUVERFOLDER% started at %TIME%
+dism /Image:%MOS%\ /Add-Driver /Driver:%DRIVERFOLDER% /Recurse
+if %conservefiles%==yes call :restore
+call :mnua
+:: setbcd
+:regmount
+cla
+echo -----------------------------------------------
+echo type the Windows on arm RootDir of your device:
+echo if you singlebooted it, just type the drive mount or letter for your device, if your dualbooted it, sadly you will need quotes always. Example: "F:\Windowsarm\"
+set /p woasystemroot=type the drive letter...
+echo -----------------------------------------------------
+echo Registery options: (Windows Root: %woasystemroot%  /                      
+echo -------------------------------------------------
+echo A- Mount SYSTEM                           /
+echo B- Mount SOFTWARE                        /
+echo C- Unmount all                          /
+echo D- Exit                                /
+echo ---------------------------------------
+echo More optinos will be added later!
+set /p regop=Option:
+if %regop%==A reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
+if %regop%==a reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
+if %regop%==B reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
+if %regop%==b reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
+if %regop%==C reg unload HKEY_LOCAL_MACHINE\Woa32 && call :regmount
+if %regop%==c reg unload HKEY_LOCAL_MACHINE\Woa32 && call :regmount
+if %regop%==D call :mnua
+if %regop%==d call :mnua
