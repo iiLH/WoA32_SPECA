@@ -1,4 +1,6 @@
 @echo off
+set "bcdRGBentry={703c511b-98f3-4630-b752-6d177cbfb89c}"
+set efishell_data
 color 03
 title ARMV7 Windows installer for lumia SPEC A Devices
 echo ------------------------------------------------------------------------
@@ -23,8 +25,9 @@ echo Main menu:                                                                 
 echo -------------------------------------------------------------------------------------------------------------
 echo Main menu options:
 echo A-Start an installation from zero (THIS WILL LOSE ANY KIND OF DATA STORED ON YOUR CURRENT ARMV7 version of Windows preinstalled (ADMNINSTRATOR REQUERIED)
-echo B-Upgrade your version (it will make a backup from anything in Users folder (YOU MUST USE RUN AS ADMINISTRATOR OR NSUDO)
+echo B-Upgrade your version (it will make a backup from anything in Users folder (YOU MUST USE RUN AS ADMINISTRATOR OR NSUDO))
 echo C-Mount the registery
+echo D-(NEW FOR 820!!!) Automatic Process! (features FORMAT and bcdedit autoset!) (needs the drive letter Z: unused for mounting the EFIESP)
 echo --------------------------------------------------------------------------------------------------------------------------------
 set /p data_option=Choose any option:
 if %data_option%==A set conservefiles=no && call :phaseone
@@ -33,6 +36,8 @@ if %data_option%==B set conservefiles=yes && call phaseone
 if %data_option%==b set conservefiles=yes && call phaseone
 if %data_option%==C call :regmount
 if %data_option%==c call :regmount
+if %data_option%==D set bcd=yes && call :phaseone
+if %data_option%==d set bcd=yes && call :phaseone
 :phaseone
 cls
 echo Upgrade mode: %conservefiles%
@@ -60,6 +65,7 @@ echo Upgrade mode: %conservefiles%
 echo MainOS's letter drive: %MOS%
 echo -----------------------------
 echo Let's go!
+if %bcd%==yes (call :setbcd) ELSE (call :deploy)
 if %conservefiles%==yes (call :copy) ELSE (call :deploy)
 call :deploy
 :deploy
@@ -69,16 +75,32 @@ echo Deploy ended, install of the driver folder %DRUVERFOLDER% started at %TIME%
 dism /Image:%MOS%\ /Add-Driver /Driver:%DRIVERFOLDER% /Recurse
 if %conservefiles%==yes call :restore
 call :mnua
-:: setbcd
+:setbcd
+echo EFIESP mount started at %TIME%
+set MNTDRIVE=Z:
+echo Seeking for drives with "%MNTDRIVE%" letter...
+if exist %MNTDRIVE%\ echo Drive letter %MNTDRIVE% is used, setting to V: && set MNTDRIVE=V:
+echo assign letter=%MNTDRIVE% >> ".\diskpart_map\820.txt"
+diskpart /s ".\diskpart_map\820.txt"
+echo bcdedit setting started at %TIME%
+echo type where you will apply the Wim file. examples: "C:\WoA"
+set /p bcdroot=BCD:
+bcdedit /store %MNTDRIVE%\efi\Microsoft\Boot\BCD /create %bcdRGBentry% /d "ARM32 Windows installation" /application osloader
+bcdedit /store %MNTDRIVE%\efi\Microsoft\Boot\BCD /set %bcdRGBentry% device "partition=%MOS%\"
+bcdedit /store %MNTDRIVE%\efi\Microsoft\Boot\BCD /set %bcdRGBentry% osdevice "partition=%MOS%\"
+bcdedit /store %MNTDRIVE%\efi\Microsoft\Boot\BCD /set %bcdRGBentry% systemroot %bcdroot%\Windows
+bcdedit /store %MNTDRIVE%\efi\Microsoft\Boot\BCD /set %bcdRGBentry% path %bcdroot%\Windows\System32\Boot\winload.efi
+echo Jumping to deploy...
+call :phaseone
 :regmount
-cla
+cls
 echo -----------------------------------------------
 echo type the Windows on arm RootDir of your device:
 echo if you singlebooted it, just type the drive mount or letter for your device, if your dualbooted it, sadly you will need quotes always. Example: "F:\Windowsarm\"
 set /p woasystemroot=type the drive letter...
 echo -----------------------------------------------------
-echo Registery options: (Windows Root: %woasystemroot%  /                      
-echo -------------------------------------------------
+echo Registery options: (Windows Root: %woasystemroot%)  /                      
+echo ---------------------------------------------------
 echo A- Mount SYSTEM                           /
 echo B- Mount SOFTWARE                        /
 echo C- Unmount all                          /
@@ -86,11 +108,11 @@ echo D- Exit                                /
 echo ---------------------------------------
 echo More optinos will be added later!
 set /p regop=Option:
-if %regop%==A reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
-if %regop%==a reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
-if %regop%==B reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
-if %regop%==b reg load HKEY_LOCAL_MACHINE\WoA32 %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
-if %regop%==C reg unload HKEY_LOCAL_MACHINE\Woa32 && call :regmount
-if %regop%==c reg unload HKEY_LOCAL_MACHINE\Woa32 && call :regmount
+if %regop%==A reg load HKEY_LOCAL_MACHINE\WoA32\SYSTEM %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
+if %regop%==a reg load HKEY_LOCAL_MACHINE\WoA32\SYSTEM %woasystemroot%Windows\System32\Config\SYSTEM && regedit && call :regmount
+if %regop%==B reg load HKEY_LOCAL_MACHINE\WoA32\SOFTWARE %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
+if %regop%==b reg load HKEY_LOCAL_MACHINE\WoA32\SOFTWARE %woasystemroot%Windows\System32\Config\SOFTWARE && regedit && call :regmount
+if %regop%==C reg unload HKEY_LOCAL_MACHINE\Woa32\SYSTEM && call :regmount
+if %regop%==c reg unload HKEY_LOCAL_MACHINE\Woa32\SOFTWARE && call :regmount
 if %regop%==D call :mnua
 if %regop%==d call :mnua
